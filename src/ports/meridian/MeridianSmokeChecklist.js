@@ -43,26 +43,33 @@ export function renderProgressPanel({ currentFilter }) {
   `;
 }
 
-export function renderMeridianSectionNav() {
+export function renderMeridianSectionNav(activeSectionId) {
   return MERIDIAN_SECTIONS.map((section) => `
-    <a class="section-link" href="#sec-${section.id}"><span>${section.num}</span>${esc(section.short)}</a>
+    <a class="section-link${section.id === activeSectionId ? ' is-active' : ''}" href="#sec-${section.id}" data-section-link="${section.id}" ${section.id === activeSectionId ? 'aria-current="true"' : ''}><span>${section.num}</span>${esc(section.short)}</a>
   `).join('');
 }
 
-export function renderMeridianSectionsMarkup({ state }) {
+export function renderMeridianSectionsMarkup({ state, activeSectionId }) {
   let html = '';
 
   MERIDIAN_SECTIONS.forEach((section) => {
+    const expanded = section.id === activeSectionId;
     html += `
-      <section class="section" id="sec-${section.id}">
+      <section class="section checklist-section${expanded ? ' is-expanded' : ' is-collapsed'}" id="sec-${section.id}" data-section-id="${section.id}">
         <div class="section-head">
           <div>
             <div class="section-number">Section ${section.num}</div>
             <h2>${esc(section.title)}</h2>
           </div>
-          <span class="section-tally" id="tally-${section.id}">0/${section.items.length}</span>
+          <div class="section-head-actions">
+            <span class="section-tally" id="tally-${section.id}">0/${section.items.length}</span>
+            <button class="section-toggle" type="button" data-section-toggle="${section.id}" aria-expanded="${expanded}" aria-controls="panel-${section.id}">
+              <span class="section-toggle-text">${expanded ? 'Collapse' : 'Expand'}</span>
+              <span class="section-toggle-icon" aria-hidden="true"></span>
+            </button>
+          </div>
         </div>
-        <div class="items">
+        <div class="items" id="panel-${section.id}" ${expanded ? '' : 'hidden'}>
     `;
 
     section.items.forEach((item, idx) => {
@@ -99,20 +106,24 @@ export function renderMeridianSectionsMarkup({ state }) {
     html += '</div></section>';
   });
 
-  return `${html}${renderDecision({ state })}`;
+  return `${html}${renderDecision({ state, expanded: activeSectionId === 'final' })}`;
 }
 
-export function renderDecision({ state }) {
+export function renderDecision({ state, expanded = true }) {
   const decision = state.decision || { verdict: null, notes: '' };
   return `
-    <section class="section decision-section" id="sec-final">
+    <section class="section decision-section checklist-section${expanded ? ' is-expanded' : ' is-collapsed'}" id="sec-final" data-section-id="final">
       <div class="section-head">
         <div>
           <div class="section-number">Section ${MERIDIAN_SECTIONS.length + 1}</div>
           <h2>Final Decision</h2>
         </div>
+        <button class="section-toggle" type="button" data-section-toggle="final" aria-expanded="${expanded}" aria-controls="panel-final">
+          <span class="section-toggle-text">${expanded ? 'Collapse' : 'Expand'}</span>
+          <span class="section-toggle-icon" aria-hidden="true"></span>
+        </button>
       </div>
-      <div class="decision-card">
+      <div class="decision-card" id="panel-final" ${expanded ? '' : 'hidden'}>
         <div class="audit-gate">
           <div>
             <div class="audit-gate-label">Fresh clone gate</div>

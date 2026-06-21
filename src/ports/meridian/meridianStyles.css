@@ -142,6 +142,51 @@
   color: var(--meridian-amber-soft);
 }
 
+.meridian-port .section-link.is-active {
+  border-color: rgba(255, 138, 40, 0.34);
+  background:
+    linear-gradient(90deg, rgba(232, 84, 10, 0.16), rgba(0, 48, 135, 0.08)),
+    rgba(26, 26, 46, 0.72);
+  color: #fff7ed;
+}
+
+.meridian-port .checklist-section.is-expanded {
+  border-color: rgba(255, 138, 40, 0.34);
+  box-shadow:
+    0 16px 42px rgba(0, 0, 0, 0.3),
+    inset 3px 0 0 rgba(232, 84, 10, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.meridian-port .checklist-section.is-collapsed {
+  border-color: rgba(255, 138, 40, 0.14);
+  background:
+    linear-gradient(180deg, rgba(26, 26, 46, 0.82), rgba(18, 22, 34, 0.78)),
+    rgba(26, 26, 46, 0.82);
+}
+
+.meridian-port .section-toggle {
+  border-color: rgba(255, 138, 40, 0.22);
+  background: rgba(15, 17, 23, 0.58);
+  color: var(--meridian-muted);
+}
+
+.meridian-port .section-toggle:hover {
+  border-color: rgba(255, 138, 40, 0.48);
+  background: rgba(232, 84, 10, 0.14);
+  color: #fff7ed;
+}
+
+.meridian-port .section-toggle:focus-visible {
+  outline-color: rgba(255, 138, 40, 0.82);
+}
+
+.meridian-port .section-toggle[aria-expanded="true"] {
+  border-color: rgba(255, 138, 40, 0.42);
+  background: rgba(232, 84, 10, 0.16);
+  color: var(--meridian-amber-soft);
+}
+
 .meridian-port .progress-fill {
   background: linear-gradient(90deg, #b33d00, var(--meridian-amber), var(--meridian-amber-hot));
   box-shadow: 0 0 24px rgba(232, 84, 10, 0.34);

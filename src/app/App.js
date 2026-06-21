@@ -52,6 +52,7 @@ function storedActiveView() {
 }
 
 let currentFilter = 'all';
+let expandedMeridianSectionId = null;
 let deferredInstallPrompt = null;
 let activeView = storedActiveView();
 let activeModuleId = storedActiveModuleId();
@@ -116,6 +117,8 @@ function setStatus(id, status) {
   persistMeridian();
   refreshItemCard(id);
   refreshProgress();
+  expandedMeridianSectionId = currentMeridianSectionId();
+  setExpandedMeridianSection(expandedMeridianSectionId);
   refreshCommandCards();
   refreshGridStatusBar();
 }
@@ -161,6 +164,16 @@ function nextUncheckedItem() {
     if (item) return { section, item };
   }
   return null;
+}
+
+function currentMeridianSectionId() {
+  return nextUncheckedItem()?.section.id || 'final';
+}
+
+function activeMeridianSectionId() {
+  const validIds = new Set([...MERIDIAN_SECTIONS.map((section) => section.id), 'final']);
+  if (expandedMeridianSectionId && validIds.has(expandedMeridianSectionId)) return expandedMeridianSectionId;
+  return currentMeridianSectionId();
 }
 
 function activeAuditLabel() {
@@ -335,8 +348,10 @@ function renderMeridianSections() {
   const container = document.getElementById('section-container');
   if (!nav || !container) return;
 
-  nav.innerHTML = renderMeridianSectionNav();
-  container.innerHTML = renderMeridianSectionsMarkup({ state: meridianState });
+  const activeSectionId = activeMeridianSectionId();
+  nav.innerHTML = renderMeridianSectionNav(activeSectionId);
+  container.innerHTML = renderMeridianSectionsMarkup({ state: meridianState, activeSectionId });
+  attachSectionCollapseListeners();
   MERIDIAN_SECTIONS.forEach((section) => section.items.forEach((item) => attachItemListeners(item.id)));
   attachDecisionListeners();
   refreshProgress();
@@ -600,6 +615,54 @@ function attachMeridianListeners() {
   renderMeridianSections();
 }
 
+function setExpandedMeridianSection(sectionId, { scroll = false } = {}) {
+  const target = document.getElementById(`sec-${sectionId}`);
+  if (!target) return;
+  expandedMeridianSectionId = sectionId;
+  document.querySelectorAll('[data-section-id]').forEach((sectionEl) => {
+    const expanded = sectionEl.dataset.sectionId === sectionId;
+    sectionEl.classList.toggle('is-expanded', expanded);
+    sectionEl.classList.toggle('is-collapsed', !expanded);
+    const panel = sectionEl.querySelector(`#panel-${sectionEl.dataset.sectionId}`);
+    if (panel) panel.hidden = !expanded;
+    const toggle = sectionEl.querySelector('[data-section-toggle]');
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', String(expanded));
+      const text = toggle.querySelector('.section-toggle-text');
+      if (text) text.textContent = expanded ? 'Collapse' : 'Expand';
+    }
+  });
+  document.querySelectorAll('[data-section-link]').forEach((link) => {
+    const active = link.dataset.sectionLink === sectionId;
+    link.classList.toggle('is-active', active);
+    if (active) link.setAttribute('aria-current', 'true');
+    else link.removeAttribute('aria-current');
+  });
+  if (scroll) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function attachSectionCollapseListeners() {
+  document.querySelectorAll('[data-section-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const sectionId = button.dataset.sectionToggle;
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      if (expanded && sectionId !== currentMeridianSectionId()) {
+        expandedMeridianSectionId = currentMeridianSectionId();
+        setExpandedMeridianSection(expandedMeridianSectionId);
+      } else if (!expanded) {
+        setExpandedMeridianSection(sectionId);
+      }
+    });
+  });
+  document.querySelectorAll('.section-link').forEach((link) => {
+    link.addEventListener('click', (event) => {
+      event.preventDefault();
+      const sectionId = link.getAttribute('href')?.replace('#sec-', '');
+      if (sectionId) setExpandedMeridianSection(sectionId, { scroll: true });
+    });
+  });
+}
+
 function attachItemListeners(id) {
   const card = document.getElementById(`card-${id}`);
   if (!card) return;
@@ -793,6 +856,7 @@ function jumpToNextOpen() {
     return;
   }
   if (currentFilter !== 'all' && currentFilter !== 'open') setFilter('all');
+  setExpandedMeridianSection(next.section.id);
   const card = document.getElementById(`card-${next.item.id}`);
   card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   card?.querySelector('.status-btn')?.focus({ preventScroll: true });
