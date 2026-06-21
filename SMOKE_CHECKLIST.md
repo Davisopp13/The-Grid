@@ -60,7 +60,8 @@ _Created: June 21, 2026_
    6. [ ] Confirm activity stats update as expected.
    7. [ ] Confirm duplicate production close rows are not created.
    8. [ ] Confirm a non-scoped or access-revoked user does not auto-close.
-   9. [ ] Review admin/passive testing data for unexpected blockers or false positives.
+   9. [ ] Confirm the Complete-during-reclassification guard holds: `reclass_in_progress_at_complete` prevents unsafe passive auto-close while reclassification is still in progress.
+   10. [ ] Review admin/passive testing data for unexpected blockers or false positives.
 
 7. Rollback Checklist
 

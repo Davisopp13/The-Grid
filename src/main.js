@@ -46,6 +46,7 @@ const SECTIONS = [
       { id: 'rc5', text: 'Supabase check: same `case_events` row has `source = "passive_auto"`.' },
       { id: 'rc6', text: 'Linked observation in `passive_observations` is marked auto-closed (`review_action = "auto"`, `promoted_event_id` populated).' },
       { id: 'rc7', text: 'Monitor panel reflects the passive close for the reclassified case.' },
+      { id: 'rc8', text: 'Complete-during-reclassification guard holds: `reclass_in_progress_at_complete` prevents an unsafe passive auto-close while reclassification is still in progress.' },
     ],
   },
   {
@@ -112,6 +113,36 @@ const FILTERS = [
   { id: 'open', label: 'Open' },
   { id: 'attention', label: 'Needs attention' },
   { id: 'complete', label: 'Passed' },
+];
+
+const SMOKE_RECORD_SECTIONS = [
+  {
+    title: 'Containment boundary',
+    items: [
+      '`PASSIVE_CLOSE_LIVE = false` remains the broad passive close kill switch.',
+      '`HYBRID_AUTO_CLOSE_LIVE = true` enables only the scoped hybrid trial path.',
+      '`state.hybridAccessConfirmed === true` is required before production auto-close writes.',
+      'No Supabase migration, schema, RLS, RPC, table, relay, dashboard, MPL, or Supabase client change is included.',
+    ],
+  },
+  {
+    title: 'Critical outcome paths',
+    items: [
+      'Resolved case auto-close smoke.',
+      'Reclassified case auto-close smoke.',
+      '`reclass_in_progress_at_complete` guard for Complete-during-reclassification safety.',
+      'Low-confidence shadow-only behavior.',
+      'No-tracked-case close-nothing safety.',
+    ],
+  },
+  {
+    title: 'Deployment separation',
+    items: [
+      'Human review, PR approval, merge, deployment, and post-deploy smoke remain separate gates.',
+      'Rollback sets `PASSIVE_CLOSE_LIVE = false` and `HYBRID_AUTO_CLOSE_LIVE = false`.',
+      'This artifact is approved as the human smoke record, not broad passive-close readiness evidence.',
+    ],
+  },
 ];
 
 function finalFreshCloneAuditPrompt() {
@@ -317,6 +348,8 @@ function renderShell() {
         </aside>
       </section>
 
+      ${renderSmokeRecord()}
+
       <section class="progress-panel" aria-label="Smoke test progress">
         <div class="progress-head">
           <div>
@@ -359,6 +392,30 @@ function renderShell() {
       <button class="btn btn-secondary" id="btn-reset" type="button">Reset</button>
       <button class="btn btn-primary" id="btn-export" type="button">Export Summary</button>
     </footer>
+  `;
+}
+
+function renderSmokeRecord() {
+  return `
+    <section class="record-panel" aria-labelledby="record-title">
+      <div class="record-head">
+        <div>
+          <div class="panel-label">Approved Smoke Record</div>
+          <h2 id="record-title">Scoped hybrid auto-close trial checklist</h2>
+        </div>
+        <span class="record-status">Approved artifact</span>
+      </div>
+      <div class="record-grid">
+        ${SMOKE_RECORD_SECTIONS.map((section) => `
+          <article class="record-group">
+            <h3>${esc(section.title)}</h3>
+            <ol>
+              ${section.items.map((item) => `<li>${fmtText(item)}</li>`).join('')}
+            </ol>
+          </article>
+        `).join('')}
+      </div>
+    </section>
   `;
 }
 
