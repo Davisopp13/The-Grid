@@ -4,6 +4,7 @@ export const PROJECT_REGISTRY = [
     name: 'Meridian Port',
     status: 'Active',
     accent: 'orange',
+    icon: '/meridian-checklist-icon.svg',
     summary: 'Mission-control surface for Meridian readiness, smoke evidence, prompts, reports, and audio.',
     sections: ['readiness', 'smoke tests', 'evidence', 'reports'],
   },

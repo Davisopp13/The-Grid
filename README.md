@@ -1,6 +1,13 @@
-# Meridian Hybrid Auto-Close Smoke Test
+# The Grid
 
-Static Vite app for the Meridian PR #7 scoped hybrid auto-close smoke test.
+Static Vite PWA for Davis's project maintenance and operations shell.
+
+The Grid is the human-facing command surface for project status, audit prompts,
+smoke checklists, evidence capture, reports, and local audio/report intake.
+Hermes remains the agent/runtime system.
+
+Meridian Port is the first project module inside The Grid. It owns the Meridian
+PR #7 scoped hybrid auto-close smoke workflow.
 
 ## Local Run
 
@@ -37,4 +44,4 @@ Import the GitHub repo in Vercel. Vercel should detect Vite automatically.
 - Output directory: `dist`
 - Install command: `npm install`
 
-No runtime environment variables are required for this static checklist.
+No runtime environment variables are required for this static shell.

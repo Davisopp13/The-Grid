@@ -1,6 +1,6 @@
 # The Grid Architecture
 
-The Grid is the top-level local-first operations shell for Davis's projects. It is not a replacement for Telegram or the Hermes dashboard. Telegram remains the fast direct command channel; The Grid is the structured workspace for current project state, evidence, reports, prompts, and local audio/report intake.
+The Grid is the top-level local-first operations shell for Davis's projects. It is not a replacement for Hermes. Hermes remains the agent/runtime system; The Grid is the structured human command surface for current project state, evidence, reports, prompts, and local audio/report intake.
 
 ## Shell And Ports
 
@@ -28,6 +28,13 @@ Meridian Port is the first Port. It owns Meridian-specific readiness work:
 - Meridian prompt cards
 
 The smoke checklist remains focused on live Salesforce/widget smoke testing. Source-code review and readiness audit work belongs in prompts, not in checklist rows.
+
+## Source Layout
+
+- `src/app` owns app state orchestration and view selection.
+- `src/shell` owns the Grid shell, navigation, and port switcher.
+- `src/ports/meridian` owns Meridian Port rendering, data, prompts, storage, and export format.
+- `src/shared` is reserved for cross-port components, storage helpers, export helpers, and audio utilities.
 
 ## Local-First MVP Storage
 
