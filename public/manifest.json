@@ -1,0 +1,16 @@
+{
+  "name": "Meridian Hybrid Smoke Test",
+  "short_name": "Meridian Smoke",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f1e",
+  "theme_color": "#003087",
+  "icons": [
+    {
+      "src": "/meridian-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
