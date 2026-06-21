@@ -1,6 +1,9 @@
 import './styles.css';
 
 const STORAGE_KEY = 'meridian_smoke_pr7_v2';
+const AUDIO_DB_NAME = 'meridian-port';
+const AUDIO_STORE_NAME = 'audio';
+const AUDIO_DB_VERSION = 1;
 
 const SECTIONS = [
   {
@@ -250,12 +253,14 @@ function finalFreshCloneAuditPrompt() {
 let currentFilter = 'all';
 let deferredInstallPrompt = null;
 let state = loadState();
+const audioUrls = new Map();
 
 function defaultState() {
   return {
     items: {},
     audit: { verdict: 'not-run', notes: '' },
     run: { tester: '', environmentUrl: '' },
+    audio: [],
     decision: { verdict: null, notes: '' },
     savedAt: null,
   };
@@ -273,6 +278,7 @@ function loadState() {
         items: parsed.items || defaults.items,
         audit: { ...defaults.audit, ...(parsed.audit || {}) },
         run: { ...defaults.run, ...(parsed.run || {}) },
+        audio: Array.isArray(parsed.audio) ? parsed.audio : defaults.audio,
         decision: { ...defaults.decision, ...(parsed.decision || {}) },
       };
     }
@@ -340,6 +346,104 @@ function setItemField(id, key, value) {
   persist();
 }
 
+function openAudioDb() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) {
+      reject(new Error('IndexedDB is unavailable'));
+      return;
+    }
+
+    const request = indexedDB.open(AUDIO_DB_NAME, AUDIO_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(AUDIO_STORE_NAME)) {
+        db.createObjectStore(AUDIO_STORE_NAME);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('Unable to open audio database'));
+  });
+}
+
+async function withAudioStore(mode, action) {
+  const db = await openAudioDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(AUDIO_STORE_NAME, mode);
+    const store = transaction.objectStore(AUDIO_STORE_NAME);
+    let request;
+
+    try {
+      request = action(store);
+    } catch (error) {
+      db.close();
+      reject(error);
+      return;
+    }
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(request?.result);
+    };
+    transaction.onerror = () => {
+      db.close();
+      reject(transaction.error || new Error('Audio database transaction failed'));
+    };
+    transaction.onabort = () => {
+      db.close();
+      reject(transaction.error || new Error('Audio database transaction aborted'));
+    };
+  });
+}
+
+function putAudioBlob(id, blob) {
+  return withAudioStore('readwrite', (store) => store.put(blob, id));
+}
+
+function getAudioBlob(id) {
+  return withAudioStore('readonly', (store) => store.get(id));
+}
+
+function deleteAudioBlob(id) {
+  return withAudioStore('readwrite', (store) => store.delete(id));
+}
+
+function clearAudioStore() {
+  return withAudioStore('readwrite', (store) => store.clear());
+}
+
+function makeAudioId(file) {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `audio-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function setAudioUrl(id, blob) {
+  revokeAudioUrl(id);
+  const url = URL.createObjectURL(blob);
+  audioUrls.set(id, url);
+  return url;
+}
+
+function revokeAudioUrl(id) {
+  const existing = audioUrls.get(id);
+  if (existing) URL.revokeObjectURL(existing);
+  audioUrls.delete(id);
+}
+
+function revokeAllAudioUrls() {
+  Array.from(audioUrls.keys()).forEach((id) => revokeAudioUrl(id));
+}
+
+async function hydrateAudioUrls() {
+  await Promise.all((state.audio || []).map(async (item) => {
+    try {
+      const blob = await getAudioBlob(item.id);
+      if (blob) setAudioUrl(item.id, blob);
+    } catch {
+      // Missing or unavailable blobs leave the metadata visible for cleanup.
+    }
+  }));
+}
+
 function esc(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -393,7 +497,7 @@ function renderShell() {
       <a class="brand" href="#top" aria-label="Meridian smoke test home">
         <span class="brand-mark"><img src="/meridian-mark-192.png" alt="" /></span>
         <span>
-          <span class="brand-name">Meridian</span>
+          <span class="brand-name">Meridian Port</span>
           <span class="brand-subtitle">Hybrid Auto-Close Smoke Test</span>
         </span>
       </a>
@@ -466,6 +570,7 @@ function renderShell() {
       <div class="section-nav" id="section-nav" aria-label="Checklist sections"></div>
       <div class="filter-empty" id="filter-empty" hidden>No checklist items match the current view.</div>
       <div id="section-container"></div>
+      <div id="audio-inbox-container"></div>
     </main>
 
     <div class="toast" id="toast">Copied to clipboard</div>
@@ -563,7 +668,11 @@ function renderSections() {
     <a class="section-link" href="#sec-${section.id}">
       <span>${section.num}</span>${esc(section.short)}
     </a>
-  `).join('');
+  `).join('') + `
+    <a class="section-link" href="#audio-inbox">
+      <span>A</span>Audio
+    </a>
+  `;
 
   let html = '';
 
@@ -629,6 +738,72 @@ function renderSections() {
     section.items.forEach((item) => attachItemListeners(item.id));
   });
   attachDecisionListeners();
+}
+
+function renderAudioInbox() {
+  const container = document.getElementById('audio-inbox-container');
+  if (!container) return;
+
+  const items = state.audio || [];
+  container.innerHTML = `
+    <section class="section audio-inbox" id="audio-inbox" aria-labelledby="audio-inbox-title">
+      <div class="section-head">
+        <div>
+          <div class="section-number">Audio Inbox</div>
+          <h2 id="audio-inbox-title">Tron Audio Reports</h2>
+        </div>
+        <span class="section-tally">${items.length} report${items.length === 1 ? '' : 's'}</span>
+      </div>
+      <div class="audio-upload-row">
+        <label class="audio-upload" for="audio-upload-input">
+          <span>Add audio reports</span>
+          <input id="audio-upload-input" type="file" accept="audio/*" multiple />
+        </label>
+        <p>Audio files stay local in this browser through IndexedDB. Transcripts save with the checklist state.</p>
+      </div>
+      <div class="audio-list">
+        ${items.length ? items.map((item) => renderAudioItem(item)).join('') : `
+          <div class="audio-empty">
+            No Tron audio reports yet. Add audio files to build the local inbox for this smoke run.
+          </div>
+        `}
+      </div>
+    </section>
+  `;
+
+  attachAudioInboxListeners();
+}
+
+function renderAudioItem(item) {
+  const src = audioUrls.get(item.id) || '';
+  return `
+    <article class="audio-card" data-audio-id="${esc(item.id)}">
+      <div class="audio-card-head">
+        <div>
+          <div class="audio-name">${esc(item.name)}</div>
+          <div class="audio-added">Added ${new Date(item.addedAt).toLocaleString()}</div>
+        </div>
+        <button class="btn btn-secondary btn-audio-remove" type="button" data-audio-remove="${esc(item.id)}">
+          Remove
+        </button>
+      </div>
+      <div class="audio-controls-row">
+        <audio controls preload="metadata" src="${esc(src)}"></audio>
+        <button class="btn btn-secondary btn-audio-stop" type="button" data-audio-stop="${esc(item.id)}">
+          Stop
+        </button>
+      </div>
+      <label class="audio-transcript-wrap" for="audio-transcript-${esc(item.id)}">
+        <span>Transcript</span>
+        <textarea
+          id="audio-transcript-${esc(item.id)}"
+          class="audio-transcript"
+          data-audio-transcript="${esc(item.id)}"
+          placeholder="Paste or draft the Tron audio report transcript"
+        >${esc(item.transcript || '')}</textarea>
+      </label>
+    </article>
+  `;
 }
 
 function mkStatusButton(itemId, status, label, current) {
@@ -771,6 +946,79 @@ function attachDecisionListeners() {
     });
     autoResize(notes);
   }
+}
+
+function attachAudioInboxListeners() {
+  const upload = document.getElementById('audio-upload-input');
+  upload?.addEventListener('change', async () => {
+    await addAudioFiles(Array.from(upload.files || []));
+    upload.value = '';
+  });
+
+  document.querySelectorAll('[data-audio-transcript]').forEach((textarea) => {
+    textarea.addEventListener('input', () => {
+      const id = textarea.dataset.audioTranscript;
+      const item = state.audio.find((entry) => entry.id === id);
+      if (!item) return;
+      item.transcript = textarea.value;
+      persist();
+      autoResize(textarea);
+    });
+    autoResize(textarea);
+  });
+
+  document.querySelectorAll('[data-audio-stop]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const card = button.closest('.audio-card');
+      const audio = card?.querySelector('audio');
+      if (!audio) return;
+      audio.pause();
+      audio.currentTime = 0;
+    });
+  });
+
+  document.querySelectorAll('[data-audio-remove]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      await removeAudioItem(button.dataset.audioRemove);
+    });
+  });
+}
+
+async function addAudioFiles(files) {
+  const audioFiles = files.filter((file) => file.type.startsWith('audio/'));
+  if (!audioFiles.length) return;
+
+  for (const file of audioFiles) {
+    const id = makeAudioId(file);
+    try {
+      await putAudioBlob(id, file);
+      setAudioUrl(id, file);
+      state.audio.push({
+        id,
+        name: file.name,
+        transcript: '',
+        addedAt: new Date().toISOString(),
+      });
+    } catch {
+      showToastMessage(`Could not save ${file.name}`);
+    }
+  }
+
+  persist();
+  renderAudioInbox();
+}
+
+async function removeAudioItem(id) {
+  if (!id) return;
+  revokeAudioUrl(id);
+  state.audio = state.audio.filter((item) => item.id !== id);
+  try {
+    await deleteAudioBlob(id);
+  } catch {
+    // Metadata removal still wins; stale blobs can be cleared by Reset.
+  }
+  persist();
+  renderAudioInbox();
 }
 
 function copyAuditPrompt() {
@@ -990,7 +1238,7 @@ function exportSummary() {
   const count = totals();
 
   let md = '';
-  md += '# Meridian - Hybrid Auto-Close Smoke Test - PR #7\n';
+  md += '# Meridian Port - Hybrid Auto-Close Smoke Test - PR #7\n';
   md += `**Exported:** ${now}\n\n`;
   md += '## Context\n';
   md += '- HYBRID_AUTO_CLOSE_LIVE: true (PR #7)\n';
@@ -1152,18 +1400,25 @@ function fallbackCopy(text, onDone) {
   onDone();
 }
 
-function resetAll() {
+async function resetAll() {
   const ok = window.confirm(
-    'Reset all checklist state?\n\nThis clears every status, evidence field, audit verdict, note, and final decision.'
+    'Reset all checklist state?\n\nThis clears every status, evidence field, audit verdict, audio report, note, and final decision.'
   );
   if (!ok) return;
+  revokeAllAudioUrls();
   state = defaultState();
+  try {
+    await clearAudioStore();
+  } catch {
+    showToastMessage('Audio store could not be cleared');
+  }
   try {
     localStorage.removeItem(STORAGE_KEY);
   } catch {
     // Ignore storage cleanup failures.
   }
   renderSections();
+  renderAudioInbox();
   refreshProgress();
   refreshSavedTime();
   refreshSmokeSession();
@@ -1177,9 +1432,11 @@ function refreshSavedTime() {
     : 'Not yet saved';
 }
 
-function init() {
+async function init() {
+  await hydrateAudioUrls();
   renderShell();
   renderSections();
+  renderAudioInbox();
   refreshProgress();
   refreshSavedTime();
   setupPwaControls();

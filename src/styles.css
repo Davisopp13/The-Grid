@@ -946,6 +946,141 @@ code {
   padding: 0 12px 12px 50px;
 }
 
+.audio-upload-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  border-radius: 12px;
+  background: rgba(15, 17, 23, 0.5);
+}
+
+.audio-upload-row p {
+  max-width: 620px;
+  margin: 0;
+  color: var(--text-sec);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.audio-upload {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(96, 165, 250, 0.34);
+  border-radius: 10px;
+  background: rgba(96, 165, 250, 0.12);
+  color: #dbeafe;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.audio-upload:hover {
+  background: rgba(96, 165, 250, 0.2);
+}
+
+.audio-upload input {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.audio-list {
+  display: grid;
+  gap: 10px;
+}
+
+.audio-empty,
+.audio-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(15, 17, 23, 0.58);
+}
+
+.audio-empty {
+  padding: 18px;
+  color: var(--text-sec);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.audio-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.audio-card-head,
+.audio-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.audio-name {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.audio-added {
+  margin-top: 3px;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.audio-controls-row audio {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+}
+
+.btn-audio-stop,
+.btn-audio-remove {
+  flex-shrink: 0;
+}
+
+.audio-transcript-wrap {
+  display: grid;
+  gap: 7px;
+}
+
+.audio-transcript-wrap span {
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.audio-transcript {
+  min-height: 84px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-pri);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.audio-transcript::placeholder {
+  color: var(--text-dim);
+}
+
 .decision-card {
   padding: 16px;
   border-radius: 14px;
@@ -1174,6 +1309,19 @@ code {
   .session-head {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .audio-upload-row,
+  .audio-card-head,
+  .audio-controls-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .audio-upload,
+  .btn-audio-stop,
+  .btn-audio-remove {
+    width: 100%;
   }
 
   .audit-gate {

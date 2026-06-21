@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Meridian Hybrid Smoke Test",
-  "short_name": "Meridian Smoke",
+  "name": "Meridian Port",
+  "short_name": "Meridian Port",
   "description": "Installable offline checklist for Meridian PR #7 controlled hybrid auto-close smoke readiness.",
   "start_url": "/",
   "scope": "/",
