@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Meridian Checklist</title>
+  <desc id="desc">A Meridian-style navy app tile with an orange angular checklist mark.</desc>
+  <defs>
+    <linearGradient id="tile" x1="72" y1="44" x2="440" y2="468" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#083a7a"/>
+      <stop offset="0.48" stop-color="#00275f"/>
+      <stop offset="1" stop-color="#061326"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="128" y1="136" x2="388" y2="368" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff8a28"/>
+      <stop offset="0.45" stop-color="#e8540a"/>
+      <stop offset="1" stop-color="#b33d00"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#020617" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect x="42" y="42" width="428" height="428" rx="38" fill="url(#tile)" stroke="rgba(255,255,255,0.34)" stroke-width="2"/>
+  <path d="M82 86h348" stroke="#ffffff" stroke-opacity="0.12" stroke-width="2"/>
+  <g filter="url(#shadow)" fill="none" stroke="url(#orange)" stroke-width="30" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M136 174h70l50 62 124-118"/>
+    <path d="M136 254h52l47 58 135-128"/>
+    <path d="M136 334h72l52 50 118-112"/>
+  </g>
+  <g fill="#ff8a28" opacity="0.95">
+    <path d="M255 96l14 32 32 14-32 14-14 32-14-32-32-14 32-14z"/>
+  </g>
+  <g fill="#ffb15f" opacity="0.25">
+    <path d="M157 160h48l13 16h-61z"/>
+    <path d="M157 240h35l13 16h-48z"/>
+    <path d="M157 320h55l14 16h-69z"/>
+  </g>
+</svg>

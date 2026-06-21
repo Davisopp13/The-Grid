@@ -1,11 +1,11 @@
-const CACHE_NAME = 'meridian-smoke-pwa-v1';
+const CACHE_NAME = 'meridian-smoke-pwa-v2';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/meridian-icon-512.png',
-  '/meridian-mark-192.png',
-  '/meridian-mark-512.png',
+  '/meridian-checklist-icon.svg',
+  '/meridian-checklist-icon-192.png',
+  '/meridian-checklist-icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
