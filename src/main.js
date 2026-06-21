@@ -107,6 +107,13 @@ const DECISION_OPTS = [
   },
 ];
 
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'open', label: 'Open' },
+  { id: 'attention', label: 'Needs attention' },
+  { id: 'complete', label: 'Passed' },
+];
+
 function finalFreshCloneAuditPrompt() {
   return [
     'Run tools now.',
@@ -166,6 +173,8 @@ function finalFreshCloneAuditPrompt() {
   ].join('\n');
 }
 
+let currentFilter = 'all';
+let deferredInstallPrompt = null;
 let state = loadState();
 
 function defaultState() {
@@ -277,6 +286,8 @@ function renderShell() {
         </span>
       </a>
       <div class="header-meta" aria-label="Trial context">
+        <button class="install-btn" id="btn-install" type="button" hidden>Install</button>
+        <span class="meta-pill pwa-state" id="pwa-state">Online</span>
         <span class="meta-pill">PR #7</span>
         <span class="meta-pill">Hybrid live</span>
         <span class="meta-pill muted">Passive close off</span>
@@ -318,9 +329,26 @@ function renderShell() {
           <div class="progress-fill" id="progress-fill"></div>
         </div>
         <div class="progress-counts" id="progress-counts"></div>
+        <div class="progress-actions" aria-label="Checklist view controls">
+          <div class="filter-group" role="group" aria-label="Filter checklist items">
+            ${FILTERS.map((filter) => `
+              <button
+                class="filter-btn${filter.id === currentFilter ? ' is-active' : ''}"
+                type="button"
+                data-filter="${filter.id}"
+                aria-pressed="${filter.id === currentFilter}"
+              >${filter.label}</button>
+            `).join('')}
+          </div>
+          <button class="btn btn-secondary btn-next" id="btn-next-open" type="button">
+            Next unchecked
+          </button>
+        </div>
+        <div class="readiness-summary" id="readiness-summary"></div>
       </section>
 
       <div class="section-nav" id="section-nav" aria-label="Checklist sections"></div>
+      <div class="filter-empty" id="filter-empty" hidden>No checklist items match the current view.</div>
       <div id="section-container"></div>
     </main>
 
@@ -365,7 +393,7 @@ function renderSections() {
       const cardClass = `item-card${status !== 'not-tested' ? ` s-${status}` : ''}`;
 
       html += `
-        <article class="${cardClass}" id="card-${item.id}">
+        <article class="${cardClass}" id="card-${item.id}" data-item-id="${item.id}" data-status="${status}">
           <div class="item-row">
             <span class="item-num">${idx + 1}</span>
             <div class="item-copy">${fmtText(item.text)}</div>
@@ -506,12 +534,66 @@ function copyAuditPrompt() {
   copyToClipboard(finalFreshCloneAuditPrompt());
 }
 
+function setFilter(filter) {
+  currentFilter = FILTERS.some((item) => item.id === filter) ? filter : 'all';
+  document.querySelectorAll('.filter-btn').forEach((button) => {
+    const active = button.dataset.filter === currentFilter;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  applyFilter();
+}
+
+function itemMatchesFilter(status) {
+  if (currentFilter === 'open') return status === 'not-tested';
+  if (currentFilter === 'attention') return status === 'fail' || status === 'blocked';
+  if (currentFilter === 'complete') return status === 'pass';
+  return true;
+}
+
+function applyFilter() {
+  let visibleCount = 0;
+  document.querySelectorAll('.item-card').forEach((card) => {
+    const status = card.dataset.status || 'not-tested';
+    const visible = itemMatchesFilter(status);
+    card.hidden = !visible;
+    if (visible) visibleCount += 1;
+  });
+
+  SECTIONS.forEach((section) => {
+    const sectionEl = document.getElementById(`sec-${section.id}`);
+    if (!sectionEl) return;
+    const hasVisibleItems = Array.from(sectionEl.querySelectorAll('.item-card'))
+      .some((card) => !card.hidden);
+    sectionEl.hidden = !hasVisibleItems;
+  });
+
+  const empty = document.getElementById('filter-empty');
+  if (empty) empty.hidden = visibleCount > 0;
+}
+
+function jumpToNextOpen() {
+  const next = SECTIONS
+    .flatMap((section) => section.items)
+    .find((item) => getStatus(item.id) === 'not-tested');
+  if (!next) {
+    showToastMessage('All items tested');
+    return;
+  }
+
+  if (currentFilter !== 'all' && currentFilter !== 'open') setFilter('all');
+  const card = document.getElementById(`card-${next.id}`);
+  card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card?.querySelector('.status-btn')?.focus({ preventScroll: true });
+}
+
 function refreshItemCard(id) {
   const status = getStatus(id);
   const card = document.getElementById(`card-${id}`);
   if (!card) return;
 
   card.className = `item-card${status !== 'not-tested' ? ` s-${status}` : ''}`;
+  card.dataset.status = status;
   card.querySelectorAll('.status-btn').forEach((button) => {
     const isActive = button.dataset.status === status;
     button.classList.toggle('is-active', isActive);
@@ -547,6 +629,8 @@ function refreshProgress() {
     `;
   }
 
+  updateReadinessSummary(count);
+
   SECTIONS.forEach((section) => {
     const tally = document.getElementById(`tally-${section.id}`);
     if (!tally) return;
@@ -565,6 +649,8 @@ function refreshProgress() {
     ].filter(Boolean);
     tally.textContent = `${tested}/${section.items.length}${warnings.length ? ` - ${warnings.join(', ')}` : ''}`;
   });
+
+  applyFilter();
 }
 
 function mkCountPill(cls, value, label) {
@@ -574,6 +660,24 @@ function mkCountPill(cls, value, label) {
       <span>${value} ${label}</span>
     </span>
   `;
+}
+
+function updateReadinessSummary(count) {
+  const summary = document.getElementById('readiness-summary');
+  if (!summary) return;
+
+  let tone = 'neutral';
+  let text = `${count.nt} items remain unchecked.`;
+  if (count.fail || count.blocked) {
+    tone = 'attention';
+    text = `${count.fail + count.blocked} item${count.fail + count.blocked === 1 ? '' : 's'} need attention before smoke.`;
+  } else if (count.nt === 0) {
+    tone = 'ready';
+    text = 'All checklist items are tested. Record the final decision before smoke.';
+  }
+
+  summary.className = `readiness-summary ${tone}`;
+  summary.textContent = text;
 }
 
 function autoResize(el) {
@@ -640,19 +744,71 @@ function exportSummary() {
   copyToClipboard(md);
 }
 
-function copyToClipboard(text) {
-  const showToast = () => {
-    const toast = document.getElementById('toast');
-    if (!toast) return;
-    toast.classList.add('show');
-    window.setTimeout(() => toast.classList.remove('show'), 2400);
-  };
+function copyToClipboard(text, toastText = 'Copied to clipboard') {
+  const showToast = () => showToastMessage(toastText);
 
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(text).then(showToast).catch(() => fallbackCopy(text, showToast));
   } else {
     fallbackCopy(text, showToast);
   }
+}
+
+function showToastMessage(message) {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add('show');
+  window.setTimeout(() => toast.classList.remove('show'), 2400);
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      updatePwaState('Offline cache unavailable');
+    });
+  });
+}
+
+function setupPwaControls() {
+  const installButton = document.getElementById('btn-install');
+  updatePwaState(navigator.onLine ? 'Online' : 'Offline ready');
+
+  window.addEventListener('online', () => updatePwaState('Online'));
+  window.addEventListener('offline', () => updatePwaState('Offline ready'));
+
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    if (installButton) installButton.hidden = false;
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    if (installButton) installButton.hidden = true;
+    updatePwaState('Installed');
+  });
+
+  installButton?.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    installButton.hidden = true;
+  });
+
+  if (window.matchMedia('(display-mode: standalone)').matches && installButton) {
+    installButton.hidden = true;
+    updatePwaState('Installed');
+  }
+}
+
+function updatePwaState(label) {
+  const stateEl = document.getElementById('pwa-state');
+  if (!stateEl) return;
+  stateEl.textContent = label;
+  stateEl.classList.toggle('is-offline', !navigator.onLine);
 }
 
 function fallbackCopy(text, onDone) {
@@ -700,10 +856,16 @@ function init() {
   renderSections();
   refreshProgress();
   refreshSavedTime();
+  setupPwaControls();
+  registerServiceWorker();
 
   document.getElementById('btn-reset')?.addEventListener('click', resetAll);
   document.getElementById('btn-export')?.addEventListener('click', exportSummary);
   document.getElementById('btn-audit-top')?.addEventListener('click', copyAuditPrompt);
+  document.getElementById('btn-next-open')?.addEventListener('click', jumpToNextOpen);
+  document.querySelectorAll('.filter-btn').forEach((button) => {
+    button.addEventListener('click', () => setFilter(button.dataset.filter));
+  });
 }
 
 init();
