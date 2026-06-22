@@ -1,5 +1,6 @@
 import '../styles.css';
 import { MODULE_REGISTRY, getFallbackModule, getModule } from '../grid/moduleRegistry/moduleRegistry.js';
+import { fetchGridReports, gridApiBaseLabel, isGridApiConfigured } from '../grid/cloudflare/gridApi.js';
 import { GRID_KEYS, GRID_STORAGE_KEYS, LEGACY_MERIDIAN_KEY } from '../grid/settings/storageKeys.js';
 import { exportGridData, importGridData, clearGridLocalData } from '../grid/settings/gridData.js';
 import { loadReports, clearReports } from '../grid/reports/reportsStorage.js';
@@ -59,6 +60,16 @@ let activeModuleId = storedActiveModuleId();
 let meridianState = loadMeridianState();
 let inboxItems = loadInbox();
 let reports = loadReports();
+let cloudReportsState = {
+  enabled: isGridApiConfigured(),
+  status: isGridApiConfigured() ? 'idle' : 'disabled',
+  reports: [],
+  mode: isGridApiConfigured() ? 'cloudflare' : 'local-first',
+  message: '',
+  error: '',
+  checkedAt: '',
+};
+let cloudReportsFetchPromise = null;
 const audioUrls = new Map();
 let pwaEventsBound = false;
 
@@ -185,6 +196,7 @@ function activeDecisionLabel() {
 }
 
 function moduleName(moduleId) {
+  if (moduleId === 'meridian') return 'Meridian Port';
   return getModule(moduleId)?.name || moduleId || 'Unknown module';
 }
 
@@ -220,6 +232,7 @@ function renderApp() {
   attachShellListeners();
   setupPwaControls();
   refreshSavedTime();
+  maybeLoadCloudReports();
 }
 
 function renderActiveModule(module) {
@@ -252,7 +265,7 @@ function renderCommandView(project) {
       <aside class="status-panel" aria-label="Active port">
         <div class="flag-row"><span>Tracked Module</span><strong>${esc(project.name)}</strong></div>
         <div class="flag-row critical"><span>Mode</span><strong>Local-first MVP</strong></div>
-        <div class="flag-note">No Supabase writes, no Hermes API, no backend ingest.</div>
+        <div class="flag-note">No Supabase writes, no Hermes bridge. Cloudflare report ingest is a guarded skeleton only.</div>
       </aside>
     </section>
 
@@ -298,7 +311,7 @@ function renderCommandCards(count = totals(), next = nextUncheckedItem(), latest
     <article class="grid-card">
       <div class="panel-label">Audio Inbox</div>
       <h2>${inboxCountForPort()} item${inboxCountForPort() === 1 ? '' : 's'}</h2>
-      <p>Manual/local report inbox. No server ingress yet.</p>
+      <p>Manual/local playback now. Cloudflare mode can receive Tron audio reports after bindings are configured.</p>
       <button class="btn btn-secondary" type="button" data-grid-view="audio">Open Audio</button>
     </article>
   `;
@@ -361,20 +374,21 @@ function renderAudioInboxView() {
   return `
     <section class="hero" aria-labelledby="audio-title">
       <div class="hero-copy">
-        <div class="eyebrow">Manual local inbox</div>
+        <div class="eyebrow">Audio surface</div>
         <h1 id="audio-title">Audio Inbox</h1>
-        <p>Telegram audio can chain playback through older messages. The Grid keeps controlled browser playback, uploaded files, URLs, and report references in one local-first inbox.</p>
+        <p>Static/local mode plays uploaded audio, URLs, and manual report notes. Cloudflare-connected mode will receive Tron audio reports here while Telegram remains the fallback/direct control line.</p>
       </div>
       <aside class="status-panel">
-        <div class="flag-row"><span>Ingress</span><strong>Manual</strong></div>
-        <div class="flag-row critical"><span>Backend</span><strong>None</strong></div>
-        <div class="flag-note">Future Hermes bridge can deliver generated audio here later. Static MVP does not implement that bridge.</div>
+        <div class="flag-row"><span>Local Inbox</span><strong>${inboxItems.length}</strong></div>
+        <div class="flag-row critical"><span>Cloudflare</span><strong>${esc(cloudStatusLabel())}</strong></div>
+        <div class="flag-note">${esc(cloudStatusMessage())}</div>
       </aside>
     </section>
     <section class="grid-info-strip" aria-label="Audio Inbox scope">
-      <div><strong>Now:</strong> paste report text, store a local upload, or reference an audio URL.</div>
-      <div><strong>Later:</strong> controlled Hermes audio handoff without Telegram playback chaining.</div>
+      <div><strong>Now:</strong> paste report text, store a local upload, or reference an audio URL in browser storage.</div>
+      <div><strong>Cloudflare:</strong> authenticated Tron audio posts can land in R2 later; task execution is not implemented.</div>
     </section>
+    ${renderCloudConnectionStrip('audio')}
     ${renderInboxComposer()}
     <section class="section audio-inbox" id="audio-inbox" aria-labelledby="audio-inbox-title">
       <div class="section-head">
@@ -451,7 +465,7 @@ function renderAudioItem(item) {
 function renderReportsView() {
   const meridianExports = getMeridianExports();
   const reportMap = new Map();
-  [...reports, ...meridianExports.map((entry) => ({
+  [...cloudReportsState.reports, ...reports, ...meridianExports.map((entry) => ({
     ...entry,
     body: entry.markdown,
     title: entry.title || 'Meridian smoke export',
@@ -462,15 +476,17 @@ function renderReportsView() {
   return `
     <section class="hero" aria-labelledby="reports-title">
       <div class="hero-copy">
-        <div class="eyebrow">Local reports</div>
+        <div class="eyebrow">Reports</div>
         <h1 id="reports-title">Reports</h1>
-        <p>Saved/exported Meridian smoke summaries live here for copy, review, and download.</p>
+        <p>Reports can be local exports now. Future Cloudflare ingestion will allow Tron to deliver audit reports directly into this read-only surface.</p>
       </div>
       <aside class="status-panel">
         <div class="flag-row"><span>Saved</span><strong>${allReports.length}</strong></div>
-        <div class="flag-note">Reports are local browser data for MVP.</div>
+        <div class="flag-row critical"><span>Cloudflare</span><strong>${esc(cloudStatusLabel())}</strong></div>
+        <div class="flag-note">${esc(cloudStatusMessage())}</div>
       </aside>
     </section>
+    ${renderCloudConnectionStrip('reports')}
     <section class="section">
       <div class="section-head">
         <div>
@@ -486,7 +502,7 @@ function renderReportsView() {
         <article class="grid-card">
           <div class="panel-label">${new Date(report.createdAt).toLocaleString()}</div>
           <h2>${esc(report.title || 'Report')}</h2>
-          <p>${esc(moduleName(report.port || 'meridian-port'))}</p>
+          <p>${esc(moduleName(report.port || 'meridian-port'))}${report.source ? ` / ${esc(report.source)}` : ''}</p>
           <button class="btn btn-secondary" data-copy-report="${esc(report.id)}" type="button">Copy</button>
         </article>
       `).join('')}
@@ -747,8 +763,83 @@ function attachPromptListeners() {
 }
 
 function findReport(id) {
-  return reports.find((report) => report.id === id)
+  return cloudReportsState.reports.find((report) => report.id === id)
+    || reports.find((report) => report.id === id)
     || getMeridianExports().find((report) => report.id === id);
+}
+
+function maybeLoadCloudReports() {
+  if (!cloudReportsState.enabled || cloudReportsState.status !== 'idle' || cloudReportsFetchPromise) return;
+  refreshCloudReports();
+}
+
+async function refreshCloudReports() {
+  if (!cloudReportsState.enabled || cloudReportsFetchPromise) return cloudReportsFetchPromise;
+  cloudReportsState = {
+    ...cloudReportsState,
+    status: 'loading',
+    error: '',
+  };
+
+  cloudReportsFetchPromise = fetchGridReports()
+    .then((result) => {
+      cloudReportsState = {
+        ...cloudReportsState,
+        status: result.mode === 'd1-unavailable' ? 'unwired' : 'connected',
+        reports: result.reports,
+        mode: result.mode,
+        message: result.message,
+        checkedAt: new Date().toISOString(),
+        error: '',
+      };
+    })
+    .catch((error) => {
+      cloudReportsState = {
+        ...cloudReportsState,
+        status: 'disconnected',
+        reports: [],
+        error: error.message,
+        checkedAt: new Date().toISOString(),
+      };
+    })
+    .finally(() => {
+      cloudReportsFetchPromise = null;
+      if (activeModuleId === 'grid-home' && (activeView === 'reports' || activeView === 'audio')) renderApp();
+    });
+
+  return cloudReportsFetchPromise;
+}
+
+function cloudStatusLabel() {
+  if (!cloudReportsState.enabled) return 'Local-first';
+  if (cloudReportsState.status === 'loading') return 'Checking';
+  if (cloudReportsState.status === 'connected') return 'Connected';
+  if (cloudReportsState.status === 'unwired') return 'D1 unwired';
+  if (cloudReportsState.status === 'disconnected') return 'Disconnected';
+  return 'Configured';
+}
+
+function cloudStatusMessage() {
+  if (!cloudReportsState.enabled) return 'Set VITE_GRID_API_BASE to enable read-only Cloudflare report fetching.';
+  if (cloudReportsState.status === 'loading') return `Checking ${gridApiBaseLabel()} for reports.`;
+  if (cloudReportsState.status === 'connected') {
+    return `Loaded ${cloudReportsState.reports.length} Cloudflare report${cloudReportsState.reports.length === 1 ? '' : 's'} from ${gridApiBaseLabel()}.`;
+  }
+  if (cloudReportsState.status === 'unwired') return cloudReportsState.message || 'API is reachable, but GRID_DB is not bound.';
+  if (cloudReportsState.status === 'disconnected') return cloudReportsState.error || 'The Grid API is unavailable.';
+  return `Cloudflare API base: ${gridApiBaseLabel()}.`;
+}
+
+function renderCloudConnectionStrip(context) {
+  const second = context === 'audio'
+    ? 'Audio ingest is write-protected and will require R2 plus a bearer token before Tron can post files.'
+    : 'Report ingest is write-protected and will require GRID_DB plus a bearer token before Tron can post audit reports.';
+  return `
+    <section class="cloud-status-strip ${cloudReportsState.enabled ? `state-${cloudReportsState.status}` : 'state-disabled'}" aria-label="Cloudflare connection">
+      <div><strong>${esc(cloudStatusLabel())}</strong> ${esc(cloudStatusMessage())}</div>
+      <div>${esc(second)}</div>
+    </section>
+  `;
 }
 
 async function addInboxEntry() {

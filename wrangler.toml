@@ -1,0 +1,20 @@
+name = "the-grid"
+compatibility_date = "2026-06-21"
+pages_build_output_dir = "dist"
+
+[vars]
+GRID_APP_NAME = "The Grid"
+
+[[d1_databases]]
+binding = "GRID_DB"
+database_name = "the-grid"
+database_id = "b6a82e25-443a-404d-a02e-5ec80808804f"
+
+[[r2_buckets]]
+binding = "GRID_ASSETS"
+bucket_name = "the-grid-assets"
+
+# Optional future settings/prompt cache.
+# [[kv_namespaces]]
+# binding = "GRID_KV"
+# id = "replace-with-cloudflare-kv-namespace-id"
