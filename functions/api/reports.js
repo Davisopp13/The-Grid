@@ -25,7 +25,7 @@ async function listReports({ env }) {
   let result;
   try {
     result = await env.GRID_DB.prepare(`
-      SELECT id, port, type, title, body, transcript, source, metadata_json, asset_key, created_at
+      SELECT id, port, type, title, body, transcript, source, metadata_json, asset_key, created_at, updated_at
       FROM reports
       ORDER BY created_at DESC
       LIMIT 50
@@ -53,12 +53,13 @@ async function createReport({ request, env }) {
 
   const id = newId('report');
   const createdAt = new Date().toISOString();
+  const updatedAt = createdAt;
 
   try {
     await env.GRID_DB.prepare(`
       INSERT INTO reports (
-        id, port, type, title, body, transcript, source, metadata_json, asset_key, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, port, type, title, body, transcript, source, metadata_json, asset_key, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       payload.port,
@@ -70,6 +71,7 @@ async function createReport({ request, env }) {
       payload.metadataJson,
       '',
       createdAt,
+      updatedAt,
     ).run();
 
     await env.GRID_DB.prepare(`
@@ -95,6 +97,7 @@ async function createReport({ request, env }) {
       metadataJson: undefined,
       assetKey: '',
       createdAt,
+      updatedAt,
     },
   }, { status: 201 });
 }

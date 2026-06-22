@@ -58,6 +58,7 @@ async function createAudioReport({ request, env }) {
 
   const id = newId('report');
   const createdAt = new Date().toISOString();
+  const updatedAt = createdAt;
   const extension = extensionFromContentType(body.contentType) || cleanExtension(body.fileName) || 'bin';
   const assetKey = `audio/${payload.port}/${createdAt.slice(0, 10)}/${id}.${extension}`;
   const bytes = Uint8Array.from(atob(audioBase64), (char) => char.charCodeAt(0));
@@ -75,8 +76,8 @@ async function createAudioReport({ request, env }) {
   try {
     await env.GRID_DB.prepare(`
       INSERT INTO reports (
-        id, port, type, title, body, transcript, source, metadata_json, asset_key, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, port, type, title, body, transcript, source, metadata_json, asset_key, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       payload.port,
@@ -88,6 +89,7 @@ async function createAudioReport({ request, env }) {
       payload.metadataJson,
       assetKey,
       createdAt,
+      updatedAt,
     ).run();
 
     await env.GRID_DB.prepare(`
@@ -117,6 +119,7 @@ async function createAudioReport({ request, env }) {
       metadata: JSON.parse(payload.metadataJson),
       assetKey,
       createdAt,
+      updatedAt,
     },
   }, { status: 201 });
 }

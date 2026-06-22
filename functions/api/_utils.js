@@ -94,6 +94,7 @@ export function reportRowToJson(row) {
     metadata: safeParseJson(row.metadata_json),
     assetKey: row.asset_key || '',
     createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
   };
 }
 

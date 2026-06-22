@@ -307,6 +307,7 @@ function renderCommandCards(count = totals(), next = nextUncheckedItem(), latest
       <div class="panel-label">Latest Export</div>
       <h2>${latestReport?.createdAt ? new Date(latestReport.createdAt).toLocaleString() : 'None yet'}</h2>
       <p>Exports are saved locally under Grid report storage.</p>
+      <button class="btn btn-secondary" type="button" data-grid-view="reports">Open Reports</button>
     </article>
     <article class="grid-card">
       <div class="panel-label">Audio Inbox</div>
